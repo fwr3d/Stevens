@@ -15,12 +15,10 @@ def connect():
 # Fetch all libraries
 def load_libraries():
     try:
-        conn = connect()
-        cur = conn.cursor()
-        cur.execute("SELECT lib_name FROM Library ORDER BY lib_name")
-        libraries = [row[0] for row in cur.fetchall()]
-        conn.close()
-        return libraries
+        with connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT lib_name FROM Library ORDER BY lib_name")
+                return [row[0] for row in cur.fetchall()]
     except Exception as e:
         messagebox.showerror("Database Error", str(e))
         return []
@@ -28,16 +26,14 @@ def load_libraries():
 # Fetch books for a selected library
 def load_books(lib_name):
     try:
-        conn = connect()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT book_name, author_name 
-            FROM Book 
-            WHERE lib_name = %s
-        """, (lib_name,))
-        rows = cur.fetchall()
-        conn.close()
-        return rows
+        with connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT book_name, author_name 
+                    FROM Book 
+                    WHERE lib_name = %s
+                """, (lib_name,))
+                return cur.fetchall()
     except Exception as e:
         messagebox.showerror("Query Error", str(e))
         return []
@@ -45,6 +41,8 @@ def load_books(lib_name):
 # On select library
 def on_library_selected(event):
     selected = lib_combo.get()
+    if not selected:
+        return
     books = load_books(selected)
     book_list.delete(*book_list.get_children())
     for book in books:
@@ -53,20 +51,29 @@ def on_library_selected(event):
 # GUI Setup
 root = tk.Tk()
 root.title("Library System")
-root.geometry("500x400")
+root.geometry("520x420")
+root.resizable(False, False)
 
-# Library dropdown
 tk.Label(root, text="Select a Library:", font=("Segoe UI", 12)).pack(pady=10)
+
 lib_combo = ttk.Combobox(root, state="readonly", width=50, font=("Segoe UI", 10))
 lib_combo.pack()
-lib_combo['values'] = load_libraries()
+libraries = load_libraries()
+lib_combo['values'] = libraries
+if libraries:
+    lib_combo.current(0)
+    on_library_selected(None)
+else:
+    messagebox.showwarning("No Libraries Found", "No libraries are available in the database.")
 lib_combo.bind("<<ComboboxSelected>>", on_library_selected)
 
-# Book list
 tk.Label(root, text="Books in Library:", font=("Segoe UI", 12)).pack(pady=10)
-book_list = ttk.Treeview(root, columns=("Title", "Author"), show="headings", height=10)
+
+book_list = ttk.Treeview(root, columns=("Title", "Author"), show="headings", height=12)
 book_list.heading("Title", text="Book Title")
 book_list.heading("Author", text="Author")
+book_list.column("Title", anchor="center", width=260)
+book_list.column("Author", anchor="center", width=200)
 book_list.pack(fill="both", expand=True, padx=10)
 
 root.mainloop()
