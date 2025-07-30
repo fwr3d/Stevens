@@ -1,27 +1,72 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
 import psycopg2
 
-# DB connection settings
-conn = psycopg2.connect(
-    dbname="librarydb",
-    user="postgres",
-    password="4532",
-    host="localhost",
-    port="5432"
-)
-cur = conn.cursor()
+# DB connection
+def connect():
+    return psycopg2.connect(
+        dbname="librarydb",
+        user="postgres",
+        password="4532",
+        host="localhost",
+        port="5432"
+    )
 
-# Read and execute SQL file
-with open("db.sql", "r", encoding="utf-8") as file:
-    sql = file.read()
+# Fetch all libraries
+def load_libraries():
+    try:
+        conn = connect()
+        cur = conn.cursor()
+        cur.execute("SELECT lib_name FROM Library ORDER BY lib_name")
+        libraries = [row[0] for row in cur.fetchall()]
+        conn.close()
+        return libraries
+    except Exception as e:
+        messagebox.showerror("Database Error", str(e))
+        return []
 
-# Clean execution per statement
-for statement in sql.strip().split(';'):
-    if statement.strip():
-        cur.execute(statement)
+# Fetch books for a selected library
+def load_books(lib_name):
+    try:
+        conn = connect()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT book_name, author_name 
+            FROM Book 
+            WHERE lib_name = %s
+        """, (lib_name,))
+        rows = cur.fetchall()
+        conn.close()
+        return rows
+    except Exception as e:
+        messagebox.showerror("Query Error", str(e))
+        return []
 
-# Finalize
-conn.commit()
-cur.close()
-conn.close()
+# On select library
+def on_library_selected(event):
+    selected = lib_combo.get()
+    books = load_books(selected)
+    book_list.delete(*book_list.get_children())
+    for book in books:
+        book_list.insert("", "end", values=book)
 
-print("Database setup and population completed successfully.")
+# GUI Setup
+root = tk.Tk()
+root.title("Library System")
+root.geometry("500x400")
+
+# Library dropdown
+tk.Label(root, text="Select a Library:", font=("Segoe UI", 12)).pack(pady=10)
+lib_combo = ttk.Combobox(root, state="readonly", width=50, font=("Segoe UI", 10))
+lib_combo.pack()
+lib_combo['values'] = load_libraries()
+lib_combo.bind("<<ComboboxSelected>>", on_library_selected)
+
+# Book list
+tk.Label(root, text="Books in Library:", font=("Segoe UI", 12)).pack(pady=10)
+book_list = ttk.Treeview(root, columns=("Title", "Author"), show="headings", height=10)
+book_list.heading("Title", text="Book Title")
+book_list.heading("Author", text="Author")
+book_list.pack(fill="both", expand=True, padx=10)
+
+root.mainloop()
